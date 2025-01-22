@@ -7,8 +7,10 @@ Directory Structure
 
 ansible-postgres-upgrade/
 ├── ReadMe.md                                  # Documentation about the structure, usage, and steps
+
 ├── playbooks/
 │   ├── upgrade_main.yml                       # Main playbook to execute the upgrade
+
 │   ├── validate_prechecks.yml                 # Playbook for environment prechecks
 │   ├── post_upgrade_validation.yml            # Playbook for post-upgrade validations
 ├── roles/
