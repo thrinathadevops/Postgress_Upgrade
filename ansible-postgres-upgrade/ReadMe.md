@@ -5,51 +5,6 @@ This Ansible role automates the process of upgrading PostgreSQL from an older ve
 Directory Structure
 -------------------
 
-ansible-postgres-upgrade/
-├── ReadMe.md                                  # Documentation about the structure, usage, and steps
-├── playbooks/
-│   ├── upgrade_main.yml                       # Main playbook to execute the upgrade
-│   ├── validate_prechecks.yml                 # Playbook for environment prechecks
-│   ├── post_upgrade_validation.yml            # Playbook for post-upgrade validations
-├── roles/
-│   ├── defaults/
-│   │   └── main.yml                           # Default variables for the role
-│   ├── files/
-│   │   ├── postgresql.conf.j2                 # Template for postgresql.conf
-│   │   ├── postgresql-13_orig.conf            # Original configuration backup
-│   ├── handlers/
-│   │   └── main.yml                           # Handlers for restarting services or notifications
-│   ├── logs/
-│   │   ├── upgrade.log                        # Captures detailed task output
-│   │   ├── precheck.log                       # Logs precheck outputs
-│   │   ├── validation.log                     # Logs validation steps
-│   ├── tasks/
-│   │   ├── backup_postgres_extensions.yml     # Task for extension backups
-│   │   ├── pre_upgrade_tasks.yml              # Tasks to prepare the environment for the upgrade
-│   │   ├── post_upgrade_tasks.yml             # Tasks for validations and final setup
-│   │   ├── check_postgres_version.yml         # Task to check PostgreSQL version
-│   │   ├── init_new_postgres_db.yml           # Initialize and validate the new PostgreSQL database
-│   │   ├── pg_upgrade.yml                     # Task for the actual `pg_upgrade`
-│   │   ├── start_stop_postgres.yml            # Unified task to start/stop PostgreSQL
-│   │   ├── validate_upgrade.yml               # Validate upgrade steps
-│   │   ├── manage_storage.yml                 # Verify and manage storage
-│   │   ├── monitor_sessions.yml               # Fetch and log active sessions
-│   │   ├── vacuum_analyze.yml                 # Perform vacuum and analyze
-│   │   └── main.yml                           # Entry point for all tasks
-│   ├── templates/
-│   │   └── postgresql.conf.j2                 # Jinja2 template for configuration
-│   ├── vars/
-│   │   └── main.yml                           # Variables specific to the role
-│   └── reports/
-│       ├── precheck_report.md                 # Markdown file summarizing prechecks
-│       ├── upgrade_summary.md                 # Markdown summary of the upgrade process
-│       ├── validation_report.md               # Report post-validation
-└── inventory/
-    ├── hosts                                  # Inventory file defining servers
-    ├── group_vars/
-    │   └── all.yml                            # Global variables
-    └── host_vars/
-        └── specific_host.yml                  # Host-specific variables
 
 ansible-postgres-upgrade/
 
@@ -130,7 +85,6 @@ ansible-postgres-upgrade/
 │       ├── validation_report.md               # Report post-validation
 
 └── inventory/
-
     ├── hosts                                  # Inventory file defining servers
     
     ├── group_vars/
