@@ -85,6 +85,7 @@ ansible-postgres-upgrade/
 │       ├── validation_report.md               # Report post-validation
 
 └── inventory/
+
     ├── hosts                                  # Inventory file defining servers
     
     ├── group_vars/
