@@ -107,26 +107,26 @@ How to Use
 Inventory Setup
 ---------------
 Define your PostgreSQL servers in the inventory/hosts file. Here is an example:
-[postgres_servers]
-server1.example.com
-server2.example.com
+1. [postgres_servers]
+2. server1.example.com
+3. server2.example.com
 
 Configuration Setup
 -------------------
 Set any necessary host or global variables in the inventory/group_vars/all.yml or inventory/host_vars/specific_host.yml files. You may need to modify the following variables:
-  postgres_old_version: The version of PostgreSQL you are upgrading from.
-  postgres_new_version: The version of PostgreSQL you are upgrading to.
-  postgres_data_dir: The data directory of PostgreSQL.
+  1. postgres_old_version: The version of PostgreSQL you are upgrading from.
+  2. postgres_new_version: The version of PostgreSQL you are upgrading to.
+  3. postgres_data_dir: The data directory of PostgreSQL.
   
 Precheck Execution
 ------------------
   Before proceeding with the actual upgrade, run the precheck playbook to validate the environment
-  ansible-playbook playbooks/validate_prechecks.yml -i inventory/hosts
+          ansible-playbook playbooks/validate_prechecks.yml -i inventory/hosts
 This playbook performs the following tasks:
-  Confirms that the PostgreSQL binaries for the target version are available.
-  Checks disk space requirements in the postgres_data_dir and /tmp directories.
-  Verifies that no active connections exist on the current PostgreSQL instance.
-  Ensures required libraries and extensions are compatible with the new version.
+  1. Confirms that the PostgreSQL binaries for the target version are available.
+  2. Checks disk space requirements in the postgres_data_dir and /tmp directories.
+  3. Verifies that no active connections exist on the current PostgreSQL instance.
+  4. Ensures required libraries and extensions are compatible with the new version.
 Precheck Log Location
   roles/logs/precheck.log
 
@@ -134,10 +134,10 @@ Playbook Execution
 ------------------
 ansible-playbook playbooks/upgrade_main.yml -i inventory/hosts
 This will:
-    Perform environment prechecks.
-    Backup the necessary extensions and configurations.
-    Execute the PostgreSQL upgrade.
-    Validate the upgrade process.
+    1. Perform environment prechecks.
+    2. Backup the necessary extensions and configurations.
+    3. Execute the PostgreSQL upgrade.
+    4. Validate the upgrade process.
     
 Post-upgrade Validation
 -----------------------
@@ -147,13 +147,13 @@ ansible-playbook playbooks/post_upgrade_validation.yml -i inventory/hosts
 Logs and Reports
 ----------------
 The upgrade process logs will be available in the roles/logs/ directory. Reports summarizing the prechecks, upgrade summary, and post-validation steps are available in the roles/reports/ directory.
-  upgrade.log: Captures detailed task outputs.
-  precheck.log: Logs precheck outputs.
-  validation.log: Logs post-validation steps.
+  1. upgrade.log: Captures detailed task outputs.
+  2. precheck.log: Logs precheck outputs.
+  3. validation.log: Logs post-validation steps.
   
 Troubleshooting
 ---------------
-  Ensure that PostgreSQL is stopped before starting the upgrade process.
-  If the upgrade fails, check the logs in roles/logs/upgrade.log for detailed error messages.
-  Review the roles/reports/upgrade_summary.md for a summary of the upgrade steps.
+  1. Ensure that PostgreSQL is stopped before starting the upgrade process.
+  2. If the upgrade fails, check the logs in roles/logs/upgrade.log for detailed error messages.
+  3. Review the roles/reports/upgrade_summary.md for a summary of the upgrade steps.
   
