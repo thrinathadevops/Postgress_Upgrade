@@ -1,1 +1,47 @@
+---
+- name: Pre-Upgrade System Compatibility Validation
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Ensure OS version and architecture are compatible
+      ansible.builtin.command: cat /etc/os-release
+      register: os_info
+      changed_when: false
+
+    - name: Validate OS version
+      ansible.builtin.debug:
+        msg: >
+          The OS version is {{ os_info.stdout_lines | join(' ') }}. Ensure this matches PostgreSQL 13 compatibility.
+
+    - name: Check system architecture
+      ansible.builtin.setup:
+      register: system_info
+
+    - name: Ensure architecture is 64-bit
+      ansible.builtin.assert:
+        that:
+          - system_info.ansible_architecture == 'x86_64'
+        fail_msg: "System architecture is not 64-bit, PostgreSQL 13 requires a 64-bit OS."
+        success_msg: "System architecture is 64-bit, compatible with PostgreSQL 13."
+
+    - name: Verify PostgreSQL 13 dependencies
+      ansible.builtin.shell: |
+        rpm -q glibc zlib libuuid
+      register: dependencies
+      failed_when: "'is not installed' in dependencies.stdout"
+
+    - name: Report missing dependencies
+      ansible.builtin.debug:
+        msg: >
+          Missing dependencies found: {{ dependencies.stderr_lines }}
+      when: "'is not installed' in dependencies.stdout"
+
+    - name: Confirm all dependencies are installed
+      ansible.builtin.assert:
+        that:
+          - "'is not installed' not in dependencies.stdout"
+        fail_msg: "One or more dependencies are missing for PostgreSQL 13."
+        success_msg: "All dependencies required for PostgreSQL 13 are installed."
 
