@@ -1,0 +1,51 @@
+#- name: Run Pre-Upgrade Prechecks
+#  ansible.builtin.include_tasks: session_monitoring.yml
+
+#- name: Run Pre-Upgrade Prechecks
+#  ansible.builtin.include_tasks: send_notification.yml
+
+#- name: Run Pre-Upgrade Prechecks
+#  ansible.builtin.include_tasks: stop_connections.yml
+
+
+#- name: Run Pre-Upgrade Prechecks
+  #  ansible.builtin.include_tasks: disable_wal_archiving.yml
+
+  #- name: Run Pre-Upgrade Prechecks
+  # ansible.builtin.include_tasks: install_missing_dependency.yml
+
+  #- name: Run Pre-Upgrade Prechecks
+  #  ansible.builtin.include_tasks: benchmark_performance.yml
+
+  #- name: Run Pre-Upgrade Prechecks
+  #ansible.builtin.include_tasks: download_postgres.yml
+
+  #- name: Run Pre-Upgrade Prechecks
+  #ansible.builtin.include_tasks: backup_database.yml
+
+  #- name: Run Pre-Upgrade Prechecks
+  #ansible.builtin.include_tasks: backup_extensions.yml 
+
+  #- name: Run Pre-Upgrade Prechecks
+  #ansible.builtin.include_tasks: verify_versions.yml
+
+  #- name: Run Pre-Upgrade Prechecks
+  #ansible.builtin.include_tasks: stop_old_postgres.yml
+
+  #- name: Run Pre-Upgrade Prechecks
+  #ansible.builtin.include_tasks: init_new_postgres.yml
+
+  #- name: Run Pre-Upgrade Prechecks
+  #ansible.builtin.include_tasks: restore_config_files.yml
+
+  #- name: Run Pre-Upgrade Prechecks
+  #ansible.builtin.include_tasks: dry_run_upgrade.yml
+
+  #- name: Run Pre-Upgrade Prechecks
+  #ansible.builtin.include_tasks: perform_upgrade.yml
+
+  #- name: Run Pre-Upgrade Prechecks
+  #ansible.builtin.include_tasks: start_newversion.yml
+
+- name: Run Pre-Upgrade Prechecks
+  ansible.builtin.include_tasks: validate_upgrade.yml

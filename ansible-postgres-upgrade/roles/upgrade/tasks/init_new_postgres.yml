@@ -1,0 +1,42 @@
+---
+- name: Extract major version number for directory naming
+  set_fact:
+    major_version: "{{ (postgres_versions[target_postgres_server].new_pg_version | string).split('.')[0] }}"
+
+# Ensure PostgreSQL data directory exists under /usr/local/psql{{major_version}}
+- name: Ensure PostgreSQL data directory exists
+  ansible.builtin.file:
+    path: "/usr/local/psql{{ major_version }}/data"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: '0700'
+
+# Initialize the data directory under /usr/local/psql{{major_version}}/data
+- name: Initialize PostgreSQL data directory for version {{ postgres_versions[target_postgres_server].new_pg_version }}
+  ansible.builtin.shell: >
+    /usr/local/psql{{ major_version }}/bin/initdb -D /usr/local/psql{{ major_version }}/data
+  become: yes
+  become_user: postgres
+  register: initdb_result
+  changed_when: initdb_result.rc == 0
+
+# Log initialization status to the upgrade log
+- name: Log PostgreSQL data directory initialization status
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL Data Directory Initialization ==========
+      Version: {{ postgres_versions[target_postgres_server].new_pg_version }}
+      Status: {{ 'Success' if initdb_result.rc == 0 else 'Failed' }}
+      Directory: /usr/local/psql{{ major_version }}/data
+      ============================================================
+    marker: ""
+  delegate_to: localhost
+
+# Fail if the data directory initialization fails
+- name: Fail playbook if data directory initialization failed
+  ansible.builtin.fail:
+    msg: "PostgreSQL data directory initialization failed. Check the logs for details."
+  when: initdb_result.rc != 0
+

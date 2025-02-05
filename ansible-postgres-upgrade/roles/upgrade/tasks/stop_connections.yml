@@ -1,0 +1,61 @@
+---
+- name: Ensure logs directory exists
+  ansible.builtin.file:
+    path: "/home/ansible/ansible-postgres-upgrade/roles/logs"
+    state: directory
+    mode: '0755'
+
+- name: Backup pg_hba.conf before modification
+  ansible.builtin.copy:
+    src: "/usr/local/pgsql/data/pg_hba.conf"
+    dest: "/usr/local/pgsql/data/pg_hba.conf.bak"
+    remote_src: yes
+    backup: yes
+
+- name: Add rule to block all incoming connections in pg_hba.conf
+  ansible.builtin.blockinfile:
+    path: "/usr/local/pgsql/data/pg_hba.conf"
+    block: |
+      # BLOCKED CONNECTIONS FOR UPGRADE
+      host    all             all             0.0.0.0/0               reject
+      host    all             all             ::/0                    reject
+    insertbefore: EOF
+
+- name: Reload PostgreSQL configuration to apply changes
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    pg_ctl reload -D /usr/local/pgsql/data
+  become_user: postgres
+
+- name: Terminate all active PostgreSQL sessions
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    psql -U postgres -c
+    "SELECT pg_terminate_backend(pid)
+     FROM pg_stat_activity
+     WHERE pid <> pg_backend_pid();"
+  become_user: postgres
+
+  #- name: Log connection blocking status
+  # ansible.builtin.blockinfile:
+  # path: "/home/ansible/ansible-postgres-upgrade/roles/logs/upgrade13.log"
+  # block: |
+  #   ========== Connection Blocking Status ==========
+  #   pg_hba.conf was modified to block all incoming connections.
+  #   Active sessions have been terminated.
+  #   Timestamp: {{ ansible_date_time.iso8601 }}
+  #   ====================================================
+  # create: yes
+  # mode: '0644'
+- name: Log connection blocking status
+  ansible.builtin.blockinfile:
+    path: "/home/ansible/ansible-postgres-upgrade/roles/logs/update_13.log"
+    block: |
+      ========== Connection Blocking Status ==========
+      PostgreSQL connections have been successfully blocked.
+      Active sessions have been terminated.
+      Timestamp: Test Timestamp - This is static content.
+      ====================================================
+    create: yes
+    mode: '0644'
+

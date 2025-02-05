@@ -1,0 +1,86 @@
+---
+- name: Send upgrade notification email to stakeholders
+  ansible.builtin.mail:
+    host: "smtp.gmail.com"
+    port: 587
+    username: "thrinatha.reddy@avekshaa.com"
+    password: "Scotland@1236"
+    to: "thrinatha.devops@gmail.com"
+    subject: "PostgreSQL Upgrade Notification"
+    body: |
+      Dear Team,
+
+      We are proceeding with the PostgreSQL upgrade at this time.
+      The database will be temporarily unavailable during the upgrade process.
+
+      Please refrain from making any database-dependent changes until further notice.
+
+      Regards,
+      DevOps Team
+    secure: starttls
+  register: email_status
+  delegate_to: localhost
+
+- name: Log email notification status to update_13.log
+  ansible.builtin.blockinfile:
+    path: "/home/ansible/ansible-postgres-upgrade/roles/logs/update_13.log"
+    block: |
+      ========== Stakeholder Notification ==========
+      Email sent to: thrinatha.devops@gmail.com
+      Subject: PostgreSQL Upgrade Notification
+      Status: {{ 'Mail sent successfully' if email_status is success else 'Failed to send mail' }}
+      ====================================================
+    create: yes
+    #############################################################################
+    #
+---
+- name: Send upgrade notification email to stakeholders
+  ansible.builtin.mail:
+    host: "127.0.0.1"
+    port: 25
+    to: "thrinatha.devops@gmail.com"
+    subject: "PostgreSQL Upgrade Notification"
+    body: |
+      Dear Team,
+
+      We are proceeding with the PostgreSQL upgrade at this time.
+      The database will be temporarily unavailable during the upgrade process.
+
+      Please refrain from making any database-dependent changes until further notice.
+
+      Regards,
+      DevOps Team
+  register: email_status
+  delegate_to: localhost
+
+- name: Send upgrade notification to Slack
+  community.general.slack:
+    token: "{{ slack_api_token }}"
+    msg: |
+      *PostgreSQL Upgrade Notification*
+
+      We are proceeding with the PostgreSQL upgrade at this time.
+      The database will be temporarily unavailable during the upgrade process.
+
+      Please refrain from making any database-dependent changes until further notice.
+
+      Regards,
+      DevOps Team
+    channel: "#devops"
+  when: slack_api_token is defined
+  register: slack_status
+  delegate_to: localhost
+
+- name: Log notification status to update_13.log
+  ansible.builtin.blockinfile:
+    path: "/home/ansible/ansible-postgres-upgrade/roles/logs/update_13.log"
+    block: |
+      ========== Stakeholder Notification ==========
+      Email sent to: thrinatha.devops@gmail.com
+      Subject: PostgreSQL Upgrade Notification
+      Email Status: {{ 'Mail sent successfully' if email_status is success else 'Failed to send mail' }}
+
+      Slack Notification: {{ 'Slack notification sent successfully' if slack_status is defined and slack_status is success else 'Slack notification not sent or failed' }}
+      ====================================================
+    create: yes
+

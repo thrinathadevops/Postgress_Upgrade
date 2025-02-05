@@ -1,0 +1,40 @@
+---
+
+- name: Identify Active Sessions
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    psql -U postgres -c
+    "SELECT pid, usename, application_name, client_addr, state
+     FROM pg_stat_activity
+     WHERE state = 'active' AND pid <> pg_backend_pid();"
+  become_user: postgres
+  register: active_sessions
+
+- name: Log Active Sessions to upgrade.log
+  ansible.builtin.blockinfile:
+    path: "/home/ansible/ansible-postgres-upgrade/roles/logs/upgrade13.log"
+    block: |
+      ========== Active Sessions Before Upgrade ==========
+      {{ active_sessions.stdout }}
+      ====================================================
+    create: yes
+
+- name: Display Active Sessions
+  ansible.builtin.debug:
+    msg: "{{ active_sessions.stdout_lines }}"
+
+- name: Fail if Active Sessions Exist
+  ansible.builtin.fail:
+    msg: "Active sessions detected! Review '/home/ansible/ansible-postgres-upgrade/roles/logs/upgrade13.log' for details. Disconnect sessions before proceeding."
+  when: active_sessions.stdout_lines | select('match', '^\\s*\\d+') | list | length > 0
+
+- name: Optionally Disconnect Active Sessions
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    psql -U postgres -c
+    "SELECT pg_terminate_backend(pid)
+     FROM pg_stat_activity
+     WHERE state = 'active' AND pid <> pg_backend_pid();"
+  become_user: postgres
+  when: force_disconnect | default(false)
+

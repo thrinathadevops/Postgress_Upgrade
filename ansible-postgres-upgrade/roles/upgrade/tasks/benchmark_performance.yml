@@ -1,0 +1,48 @@
+---
+- name: Benchmark Current PostgreSQL Performance
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    psql -U postgres -h localhost -d postgres -c "
+    SELECT query, calls, total_time / calls AS avg_time_per_call,
+           rows, shared_blks_hit, shared_blks_read
+    FROM pg_stat_statements
+    ORDER BY total_time DESC
+    LIMIT 10;"
+  become: yes
+  become_user: postgres
+  register: query_performance
+  changed_when: false
+
+- name: Log Query Performance Metrics
+  ansible.builtin.blockinfile:
+    path: /home/ansible/ansible-postgres-upgrade/roles/logs/upgrade13.log
+    block: |
+      ========== Query Performance Metrics ==========
+      {{ query_performance.stdout }}
+      ===============================================
+    marker: ""
+  delegate_to: localhost
+
+- name: Capture I/O Statistics
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    psql -U postgres -h localhost -d postgres -c "
+    SELECT checkpoints_timed, checkpoints_req, buffers_checkpoint,
+           buffers_clean, maxwritten_clean, buffers_backend,
+           buffers_alloc
+    FROM pg_stat_bgwriter;"
+  become: yes
+  become_user: postgres
+  register: io_stats
+  changed_when: false
+
+- name: Log I/O Statistics
+  ansible.builtin.blockinfile:
+    path: /home/ansible/ansible-postgres-upgrade/roles/logs/upgrade13.log
+    block: |
+      ========== I/O Statistics ==========
+      {{ io_stats.stdout }}
+      ====================================
+    marker: ""
+  delegate_to: localhost
+

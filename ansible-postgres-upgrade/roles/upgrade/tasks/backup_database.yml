@@ -1,0 +1,56 @@
+---
+- name: Perform PostgreSQL Physical Backup
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    pg_basebackup -U postgres -D /backup/base_backup_$(date +'%Y%m%d_%H%M%S') -Ft -z -Xs -P
+  become: yes
+  become_user: postgres
+  register: physical_backup_result
+  changed_when: false
+
+- name: Log PostgreSQL Physical Backup Status
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL Physical Backup ==========
+      Backup Directory: /backup/base_backup_{{ ansible_date_time.iso8601_basic_short }}
+      Status: {{ 'Success' if physical_backup_result.rc == 0 else 'Failed' }}
+      ================================================
+    marker: ""
+  delegate_to: localhost
+
+- name: Fail if Physical Backup Fails
+  ansible.builtin.fail:
+    msg: "Physical backup failed. Check precheck logs for details."
+  when: physical_backup_result.rc != 0
+
+# Optional Logical Backup
+#- name: Perform PostgreSQL Logical Backup (Optional)
+#  ansible.builtin.shell: >
+#    export PATH=$PATH:/usr/local/pgsql/bin &&
+#    pg_dumpall -U postgres -h localhost -f /backup/full_backup_$(date +'%Y%m%d_%H%M%S').sql
+#  become: yes
+#  become_user: postgres
+#  register: logical_backup_result
+#  changed_when: false
+#  when: logical_backup_enabled | default(true)
+
+  #- name: Log PostgreSQL Logical Backup Status
+  # ansible.builtin.blockinfile:
+  # path: "{{ postgres_versions[target_postgres_server].log_file }}"
+  # block: |
+  #   ========== PostgreSQL Logical Backup ==========
+  #    Backup File: /backup/full_backup_{{ ansible_date_time.iso8601_basic_short }}.sql
+  #    Status: {{ 'Success' if logical_backup_result.rc == 0 else 'Failed' }}
+  #    ===============================================
+  #  marker: ""
+  #delegate_to: localhost
+  #when: logical_backup_enabled | default(true)
+  #
+  #- name: Fail if Logical Backup Fails (Optional)
+  # ansible.builtin.fail:
+  # msg: "Logical backup failed. Check precheck logs for details."
+  # when:
+  #  - logical_backup_enabled | default(true)
+  #  - logical_backup_result.rc != 0
+

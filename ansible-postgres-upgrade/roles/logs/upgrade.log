@@ -1,0 +1,19 @@
+
+========== PostgreSQL Version Verification ==========
+Old Version: psql (PostgreSQL) 11.9
+New Version Directory: /usr/local/psql13/postgresql-13.9/src/bin/psql
+New Version: 
+=====================================================
+
+========== PostgreSQL Version Verification ==========
+Old Version: psql (PostgreSQL) 11.9
+New Binary Path: /usr/local/psql13/bin/psql
+New Version: psql (PostgreSQL) 13.9
+=====================================================
+
+========== PostgreSQL Version Verification ==========
+Old Version: psql (PostgreSQL) 11.9
+New Binary Path: /usr/local/psql13/bin/psql
+New Version: psql (PostgreSQL) 13.9
+=====================================================
+

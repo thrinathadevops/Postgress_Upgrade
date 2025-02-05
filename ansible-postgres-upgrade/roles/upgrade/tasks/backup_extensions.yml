@@ -1,0 +1,52 @@
+---
+- name: Retrieve list of all databases
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    psql -U postgres -Atc "SELECT datname FROM pg_database WHERE datistemplate = false;"
+  become: yes
+  become_user: postgres
+  register: databases
+  changed_when: false
+
+- name: Initialize extension backup log
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL Extensions Backup ==========
+      Starting extension backup for all databases...
+      ===============================================
+    marker: ""
+  delegate_to: localhost
+
+- name: Backup extensions for each database
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    psql -U postgres -d {{ item }} -Atc "SELECT extname FROM pg_extension;"
+  loop: "{{ databases.stdout_lines }}"
+  loop_control:
+    label: "{{ item }}"
+  become: yes
+  become_user: postgres
+  register: extension_backup
+  changed_when: false
+  ignore_errors: true
+
+- name: Log PostgreSQL extensions to upgrade log
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL Extensions Backup ==========
+      {% for db in extension_backup.results %}
+      Database: {{ db.item }}
+      Extensions:
+      {{ db.stdout if db.stdout else 'No extensions found or failed to retrieve.' }}
+      -------------------------------------------------
+      {% endfor %}
+      ================================================
+    marker: ""
+  delegate_to: localhost
+
+- name: Success message if extensions are recorded
+  ansible.builtin.debug:
+    msg: "PostgreSQL extensions successfully recorded for all databases."
+

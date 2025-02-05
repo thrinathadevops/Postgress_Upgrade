@@ -1,0 +1,12 @@
+---
+- name: Perform PostgreSQL Upgrade
+  hosts: "{{ target_postgres_server }}"
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - /home/ansible/ansible-postgres-upgrade/roles/vars/postgres_versions.yml
+
+  roles:
+    - { role: /home/ansible/ansible-postgres-upgrade/roles/upgrade }
+

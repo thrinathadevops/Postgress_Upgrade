@@ -1,0 +1,8 @@
+[postgres_server_13_9]
+192.168.77.10 ansible_user=ansible ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+[postgres_server_15_4]
+192.168.125.10 ansible_user=ansible ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+[local]
+localhost ansible_connection=local

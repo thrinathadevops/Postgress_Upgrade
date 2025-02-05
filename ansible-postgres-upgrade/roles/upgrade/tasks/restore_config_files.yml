@@ -1,0 +1,76 @@
+---
+- name: Extract major version number for directory naming
+  set_fact:
+    major_version: "{{ (postgres_versions[target_postgres_server].new_pg_version | string).split('.')[0] }}"
+
+# Directly set the PostgreSQL data directory path
+- name: Set fact for new PostgreSQL data directory
+  set_fact:
+    new_pg_data_dir: "/usr/local/psql{{ major_version }}/data"
+
+# Verify that the directory exists
+- name: Ensure new PostgreSQL data directory exists
+  ansible.builtin.stat:
+    path: "{{ new_pg_data_dir }}"
+  register: new_pg_data_dir_status
+
+# Fail if the directory doesn't exist
+- name: Fail if new PostgreSQL data directory is not found
+  ansible.builtin.fail:
+    msg: "New PostgreSQL data directory for version {{ major_version }} not found. Ensure PostgreSQL {{ major_version }} is installed."
+  when: not new_pg_data_dir_status.stat.exists
+
+# Backup, merge, and log config changes
+- name: Backup new PostgreSQL configuration before merging
+  ansible.builtin.copy:
+    src: "{{ new_pg_data_dir }}/postgresql.conf"
+    dest: "{{ new_pg_data_dir }}/postgresql.conf.bak"
+    remote_src: yes
+
+- name: Merge old PostgreSQL configuration into new PostgreSQL
+  ansible.builtin.shell: |
+    awk '
+      FNR==NR { old[$1]=$0; next }
+      {
+        key=$1;
+        if (key in old) {
+          print old[key]
+        } else {
+          print $0
+        }
+      }
+    ' {{ postgres_versions[target_postgres_server].pg_conf_path }} "{{ new_pg_data_dir }}/postgresql.conf" > "{{ new_pg_data_dir }}/postgresql.conf.merged"
+    mv "{{ new_pg_data_dir }}/postgresql.conf.merged" "{{ new_pg_data_dir }}/postgresql.conf"
+  become: yes
+  become_user: postgres
+  register: config_merge_result
+  changed_when: config_merge_result.rc == 0
+
+- name: Compare configuration files to identify changes
+  ansible.builtin.shell: diff "{{ new_pg_data_dir }}/postgresql.conf.bak" "{{ new_pg_data_dir }}/postgresql.conf"
+  register: config_diff_result
+  ignore_errors: true  # Allow the task to continue even if files differ
+  changed_when: false  # Prevent marking this task as 'changed'
+
+- name: Log configuration merge changes
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL Configuration Merge ==========
+      Old configuration from {{ postgres_versions[target_postgres_server].pg_conf_path }} merged into {{ new_pg_data_dir }}/postgresql.conf
+      Status: {{ 'Success' if config_merge_result.rc == 0 else 'Failed' }}
+
+      Changes Applied:
+      {% if config_diff_result.stdout %}
+      {{ config_diff_result.stdout }}
+      {% else %}
+      No differences found. Configuration already matched.
+      {% endif %}
+      ==============================================
+  delegate_to: localhost
+
+- name: Fail playbook if configuration merge failed
+  ansible.builtin.fail:
+    msg: "Configuration merge failed. Check the upgrade log for details."
+  when: config_merge_result.rc != 0
+

@@ -1,0 +1,126 @@
+---
+- name: Test internet connectivity to Fedora repository
+  ansible.builtin.shell: curl -s --head https://dl.fedoraproject.org | head -n 1
+  register: internet_check
+  ignore_errors: yes
+
+- name: Log Internet Connectivity Check
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== Internet Connectivity Check ==========
+      {% if internet_check.rc == 0 %}
+      Internet connectivity is available.
+      {% else %}
+      No internet connectivity detected. Check network settings.
+      {% endif %}
+      ==================================================
+      Timestamp: {{ ansible_date_time.iso8601 }}
+    create: yes
+    mode: '0644'
+
+- name: Install EPEL repository via package manager
+  ansible.builtin.yum:
+    name: epel-release
+    state: present
+  register: epel_status
+  ignore_errors: yes
+
+- name: Download and Install EPEL Repository Manually if Package Fails
+  ansible.builtin.shell: |
+    yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+  when: epel_status.failed
+  register: epel_manual_install
+  ignore_errors: yes
+
+- name: Log EPEL Repository Installation Status
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== EPEL Repository Installation ==========
+      {% if epel_status.rc == 0 %}
+      EPEL repository installed via package manager.
+      {% elif epel_manual_install.rc == 0 %}
+      EPEL repository installed manually from Fedora site.
+      {% else %}
+      Failed to install EPEL repository using both methods.
+      {% endif %}
+      ==================================================
+      Timestamp: {{ ansible_date_time.iso8601 }}
+    create: yes
+    mode: '0644'
+
+- name: Clean yum cache
+  ansible.builtin.shell: yum clean all
+  register: clean_cache_status
+
+- name: Rebuild yum cache
+  ansible.builtin.shell: yum makecache
+  register: update_cache_status
+
+- name: Log Yum Cache Status
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== Yum Cache Update ==========
+      Yum cache cleaned and updated.
+      Clean Cache Output: {{ clean_cache_status.stdout }}
+      Makecache Output: {{ update_cache_status.stdout }}
+      ==================================================
+      Timestamp: {{ ansible_date_time.iso8601 }}
+    create: yes
+    mode: '0644'
+
+- name: Check Installed Dependencies for PostgreSQL {{ postgres_versions[target_postgres_server].new_pg_version }}
+  ansible.builtin.shell: |
+    rpm -q {{ item }} || echo "Not Installed"
+  loop: "{{ postgres_versions[target_postgres_server].required_dependencies }}"
+  register: dependency_check
+  changed_when: false
+
+- name: Identify Missing Dependencies
+  set_fact:
+    missing_dependencies: >-
+      {{ dependency_check.results | selectattr('stdout', 'search', 'Not Installed') | map(attribute='item') | list }}
+
+- name: Log Dependency Check Results
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== Dependency Check Results ==========
+      PostgreSQL Version: {{ postgres_versions[target_postgres_server].new_pg_version }}
+      {% for result in dependency_check.results %}
+      - Dependency: {{ result.item }}
+        Status: {{ 'Installed' if 'is not installed' not in result.stdout else 'Not Installed' }}
+      {% endfor %}
+      ====================================================
+      Timestamp: {{ ansible_date_time.iso8601 }}
+    create: yes
+    mode: '0644'
+
+- name: Install Missing Dependencies for PostgreSQL {{ postgres_versions[target_postgres_server].new_pg_version }}
+  ansible.builtin.yum:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ missing_dependencies }}"
+  register: install_status
+  ignore_errors: yes
+
+- name: Log Installed Dependencies
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== Dependency Installation Results ==========
+      {% if missing_dependencies | length == 0 %}
+      All required dependencies are already installed.
+      {% else %}
+      The following missing dependencies were installed:
+      {% for dep in missing_dependencies %}
+      - {{ dep }}
+      {% endfor %}
+      {% endif %}
+      ====================================================
+      Timestamp: {{ ansible_date_time.iso8601 }}
+    create: yes
+    mode: '0644'
+

@@ -1,0 +1,32 @@
+---
+- name: Stop PostgreSQL {{ postgres_versions[target_postgres_server].old_pg_version }} service
+  ansible.builtin.systemd:
+    name: "{{ postgres_versions[target_postgres_server].pg_service_name }}"
+    state: stopped
+  register: stop_service_result
+  changed_when: stop_service_result is not skipped
+
+- name: Disable PostgreSQL {{ postgres_versions[target_postgres_server].old_pg_version }} service
+  ansible.builtin.systemd:
+    name: "{{ postgres_versions[target_postgres_server].pg_service_name }}"
+    enabled: no
+  register: disable_service_result
+  changed_when: disable_service_result is not skipped
+
+- name: Log PostgreSQL Service Stop Status
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL {{ postgres_versions[target_postgres_server].old_pg_version }} Service Stop ==========
+      Service Name: {{ postgres_versions[target_postgres_server].pg_service_name }}
+      Stop Status: {{ 'Success' if stop_service_result is succeeded else 'Failed' }}
+      Disable Status: {{ 'Success' if disable_service_result is succeeded else 'Failed' }}
+      =============================================================
+    marker: ""
+  delegate_to: localhost
+
+- name: Fail if PostgreSQL {{ postgres_versions[target_postgres_server].old_pg_version }} service did not stop
+  ansible.builtin.fail:
+    msg: "Failed to stop or disable PostgreSQL {{ postgres_versions[target_postgres_server].old_pg_version }} service. Check logs for details."
+  when: stop_service_result.failed or disable_service_result.failed
+

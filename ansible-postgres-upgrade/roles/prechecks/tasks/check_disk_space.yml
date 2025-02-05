@@ -1,0 +1,108 @@
+---
+- name: Retrieve PostgreSQL data directory
+  become_user: postgres
+  ansible.builtin.command: /usr/local/pgsql/bin/psql -U postgres -c "SHOW data_directory;"
+  register: pg_data_dir
+  changed_when: false
+
+- name: Extract PostgreSQL data directory path
+  set_fact:
+    pg_data_directory: "{{ pg_data_dir.stdout_lines[2] | trim }}"
+
+- name: Log PostgreSQL data directory path
+  ansible.builtin.blockinfile:
+    path: /home/ansible/ansible-postgres-upgrade/roles/logs/precheck.log
+    block: |
+      ========== PostgreSQL Data Directory ==========
+      Data Directory: {{ pg_data_directory }}
+      ===============================================
+    marker: ""
+  delegate_to: localhost
+
+- name: Get disk usage before upgrade
+  ansible.builtin.command: df -BM {{ pg_data_directory }}
+  register: disk_usage_before
+  changed_when: false
+
+- name: Log disk space before upgrade
+  ansible.builtin.blockinfile:
+    path: /home/ansible/ansible-postgres-upgrade/roles/logs/precheck.log
+    block: |
+      ========== Disk Usage Before Upgrade ==========
+      {{ disk_usage_before.stdout }}
+      ===============================================
+    marker: ""
+  delegate_to: localhost
+
+# Calculate PostgreSQL data size (in MB)
+- name: Calculate PostgreSQL data size before backup (in MB)
+  become_user: postgres
+  ansible.builtin.shell: du -sm {{ pg_data_directory }} | awk '{print $1}'
+  register: current_pg_size_mb
+  changed_when: false
+
+# Calculate physical backup size (in MB)
+- name: Calculate physical backup size (in MB)
+  ansible.builtin.shell: du -sm /backup/base_backup_* | awk '{sum += $1} END {print sum}'
+  register: backup_pg_size_mb
+  changed_when: false
+
+# Calculate logical backup size (in MB)
+- name: Calculate logical backup size (in MB)
+  ansible.builtin.shell: du -sm /backup/full_backup_*.sql | awk '{sum += $1} END {print sum}'
+  register: logical_backup_pg_size_mb
+  changed_when: false
+
+# Check available disk space (in MB)
+- name: Check available disk space (in MB)
+  ansible.builtin.shell: df -BM --output=avail {{ pg_data_directory }} | tail -1 | tr -d 'M'
+  register: available_disk_space_mb
+  changed_when: false
+
+# Log all calculated disk space values to prechecks log
+- name: Log calculated disk space values to prechecks log
+  ansible.builtin.blockinfile:
+    path: /home/ansible/ansible-postgres-upgrade/roles/logs/precheck.log
+    block: |
+      ========== Disk Space Calculation ==========
+      Current PG Data Size (MB): {{ current_pg_size_mb.stdout }} MB
+      Physical Backup Size (MB): {{ backup_pg_size_mb.stdout }} MB
+      Logical Backup Size (MB): {{ logical_backup_pg_size_mb.stdout }} MB
+      Available Disk Space (MB): {{ available_disk_space_mb.stdout }} MB
+      ============================================
+    marker: ""
+  delegate_to: localhost
+
+# Compare disk space and log result
+- name: Compare disk space and log result
+  ansible.builtin.lineinfile:
+    path: /home/ansible/ansible-postgres-upgrade/roles/logs/precheck.log
+    line: >
+      Required: {{
+        (current_pg_size_mb.stdout | int)
+        + (backup_pg_size_mb.stdout | int)
+        + (logical_backup_pg_size_mb.stdout | int)
+      }} MB
+      Available: {{ available_disk_space_mb.stdout }} MB →
+      {{
+        'Sufficient' if
+        (current_pg_size_mb.stdout | int
+         + backup_pg_size_mb.stdout | int
+         + logical_backup_pg_size_mb.stdout | int)
+        < available_disk_space_mb.stdout | int
+        else 'Insufficient'
+      }}
+  delegate_to: localhost
+
+# Ensure sufficient disk space is available
+- name: Ensure sufficient disk space is available
+  ansible.builtin.assert:
+    that:
+      - >
+        (current_pg_size_mb.stdout | int
+         + backup_pg_size_mb.stdout | int
+         + logical_backup_pg_size_mb.stdout | int)
+        < available_disk_space_mb.stdout | int
+    fail_msg: "Insufficient disk space for upgrade. Review precheck.log for details."
+    success_msg: "Sufficient disk space available for upgrade."
+

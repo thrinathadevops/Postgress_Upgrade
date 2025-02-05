@@ -1,0 +1,75 @@
+
+postgres_versions:
+  postgres_server_13_9:
+    old_pg_version: 11
+    new_pg_version: 13.9
+    pg_data_dir: "/usr/local/pgsql/data"
+    pg_bin_dir: "/usr/local/pgsql/bin"
+    pg_service_name: "postgresql.service"
+    pg_upgrade_log: "/var/log/pgsql_upgrade_11_to_13.9.log"
+    pg_source_url: "https://ftp.postgresql.org/pub/source/v{{ postgres_version }}/postgresql-{{ postgres_version }}.tar.gz"
+    pg_bin_dir: "/usr/local/pgsql/bin"
+    postgres_version: "13.9"
+    pg_conf_path: "/usr/local/pgsql/data/postgresql.conf"  # Path to postgresql.conf
+    wal_backup_path: "/usr/local/pgsql/data/postgresql.conf.bak"  # Backup path
+    log_file: "/home/ansible/ansible-postgres-upgrade/roles/logs/upgrade13.log"  # Log file path
+    required_dependencies:
+      - bison
+      - flex
+      - gcc
+      - krb5-devel
+      - make
+      - openssl-devel
+      - clang
+      - libicu-devel
+      - libxml2-devel
+      - libxslt-devel
+      - llvm
+      - pam-devel
+      - python3-devel
+      - systemd-devel
+      - tcl-devel
+      - perl
+      - readline-devel
+      - wget
+      - zlib-devel
+
+
+  postgres_server_15_4:
+    old_pg_version: 11
+    new_pg_version: 15.4
+    pg_data_dir: "/var/lib/pgsql/11/data"
+    new_pg_data_dir: "/var/lib/pgsql/15/data"
+    pg_bin_dir: "/usr/pgsql-11/bin"
+    new_pg_bin_dir: "/usr/pgsql-15/bin"
+    pg_service_name: "postgresql-11"
+    new_pg_service_name: "postgresql-15"
+    pg_upgrade_log: "/var/log/pgsql_upgrade_11_to_15.4.log"
+    postgres_version: "15.4"
+    pg_source_url: "https://ftp.postgresql.org/pub/source/v{{ postgres_version }}/postgresql-{{ postgres_version }}.tar.gz"
+    pg_bin_dir: "/usr/local/pgsql-{{ postgres_version }}/bin"
+    pg_conf_path: "/usr/local/pgsql/data/postgresql.conf"  # Path to postgresql.conf
+    wal_backup_path: "/usr/local/pgsql/data/postgresql.conf.bak"  # Backup path
+    log_file: "/home/ansible/ansible-postgres-upgrade/roles/logs/upgrade15.log"  # Log file path
+    required_dependencies:
+      - bison
+      - flex
+      - gcc
+      - krb5-devel
+      - make
+      - openssl-devel
+      - clang
+      - libicu-devel
+      - libxml2-devel
+      - libxslt-devel
+      - llvm
+      - pam-devel
+      - python3-devel
+      - systemd-devel
+      - tcl-devel
+      - perl
+      - readline-devel
+      - wget
+      - zlib-devel
+
+

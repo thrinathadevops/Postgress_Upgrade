@@ -1,0 +1,94 @@
+
+========== OS Details ==========
+Distribution: RedHat 8.9
+Kernel Version: 4.18.0-513.24.1.el8_9.x86_64
+Architecture: x86_64
+=================================
+
+========== Memory Details ==========
+Total Memory: 2910 MB
+====================================
+
+========== Disk Space Details ==========
+Filesystem             Size  Used Avail Use% Mounted on
+/dev/mapper/rhel-root   16G   13G  3.5G  79% /
+========================================
+
+========== Dependency Check Results ==========
+bison: Installed
+flex: Installed
+gcc: Installed
+krb5-devel: Installed
+make: Installed
+openssl-devel: Installed
+clang: Not Installed
+libicu-devel: Not Installed
+libxml2-devel: Not Installed
+libxslt-devel: Not Installed
+llvm: Not Installed
+pam-devel: Not Installed
+python3-devel: Not Installed
+systemd-devel: Not Installed
+tcl-devel: Not Installed
+perl: Installed
+readline-devel: Installed
+wget: Installed
+zlib-devel: Installed
+
+Missing Dependency: clang is required for upgrade to PostgreSQL 13.9. Required Version: 9.0.1-2.el8
+Missing Dependency: libicu-devel is required for upgrade to PostgreSQL 13.9. Required Version: 67.1-7.el8
+Missing Dependency: libxml2-devel is required for upgrade to PostgreSQL 13.9. Required Version: 2.9.7-9.el8
+Missing Dependency: libxslt-devel is required for upgrade to PostgreSQL 13.9. Required Version: 1.1.32-6.el8
+Missing Dependency: llvm is required for upgrade to PostgreSQL 13.9. Required Version: 9.0.1-2.el8
+Missing Dependency: pam-devel is required for upgrade to PostgreSQL 13.9. Required Version: 1.3.1-18.el8
+Missing Dependency: python3-devel is required for upgrade to PostgreSQL 13.9. Required Version: 3.6.8-37.el8
+Missing Dependency: systemd-devel is required for upgrade to PostgreSQL 13.9. Required Version: 239-78.el8
+Missing Dependency: tcl-devel is required for upgrade to PostgreSQL 13.9. Required Version: 8.6.8-2.el8
+==============================================
+
+========== PostgreSQL Physical Backup ==========
+Backup Directory: /backup/base_backup_20250202T145659
+Status: Success
+================================================
+
+========== PostgreSQL Data Directory ==========
+Data Directory: /usr/local/pgsql/data
+===============================================
+
+========== Disk Usage Before Upgrade ==========
+Filesystem            1M-blocks   Used Available Use% Mounted on
+/dev/mapper/rhel-root    16374M 12863M     3512M  79% /
+===============================================
+
+========== Disk Space Calculation ==========
+Current PG Data Size (MB): 261 MB
+Physical Backup Size (MB): 29 MB
+Logical Backup Size (MB):  MB
+Available Disk Space (MB): 3512 MB
+============================================
+
+Required: 290 MB Available: 3512 MB → Sufficient
+
+
+========== Installed PostgreSQL Extensions ==========
+      extname       
+--------------------
+ plpgsql
+ pg_stat_statements
+(2 rows)
+=====================================================
+
+
+========== PostgreSQL Configuration Backup ==========
+Backup Location: /backup/
+Files Backed Up:
+- postgresql.conf
+- pg_hba.conf
+- postgresql.auto.conf
+Status: Success
+=====================================================
+
+========== Orphaned Objects Check ==========
+No orphaned objects detected.
+============================================
+

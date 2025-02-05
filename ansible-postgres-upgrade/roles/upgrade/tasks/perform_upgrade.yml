@@ -1,0 +1,172 @@
+---
+- name: Extract major version number for directory naming
+  set_fact:
+    major_version: "{{ (postgres_versions[target_postgres_server].postgres_version | string).split('.')[0] }}"
+
+# Step 1: Log the start of the upgrade process
+- name: Log start of PostgreSQL upgrade
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== Starting PostgreSQL Upgrade ==========
+      Target Version: {{ postgres_versions[target_postgres_server].postgres_version }}
+      Upgrade Initiated at: {{ ansible_date_time.iso8601 }}
+      ================================================
+  delegate_to: localhost
+
+# Step 2: Find PostgreSQL binary and data directories dynamically
+- name: Find new PostgreSQL binary directory dynamically
+  ansible.builtin.find:
+    paths: "/usr/local"
+    file_type: directory
+    patterns: "bin"
+    recurse: yes
+  become: yes
+  register: new_pg_bin_dir_result
+
+- name: Find new PostgreSQL data directory dynamically
+  ansible.builtin.find:
+    paths: "/usr/local"
+    file_type: directory
+    patterns: "data"
+    recurse: yes
+  become: yes
+  register: new_pg_data_dir_result
+
+# Step 3: Debug and Log found directories
+- name: Debug found PostgreSQL directories
+  debug:
+    msg: |
+      Found Binary Directories:
+      {{ new_pg_bin_dir_result.files | map(attribute='path') | list }}
+
+      Found Data Directories:
+      {{ new_pg_data_dir_result.files | map(attribute='path') | list }}
+
+- name: Log found PostgreSQL directories
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== Detected PostgreSQL Directories ==========
+      Binary Directories Found:
+      {{ new_pg_bin_dir_result.files | map(attribute='path') | join('\n') }}
+
+      Data Directories Found:
+      {{ new_pg_data_dir_result.files | map(attribute='path') | join('\n') }}
+      =====================================================
+  delegate_to: localhost
+
+# Step 4: Set facts for new PostgreSQL directories
+- name: Set fact for new PostgreSQL directories
+  set_fact:
+    new_pg_bin_dir: "{{ new_pg_bin_dir_result.files | selectattr('path', 'search', 'psql' ~ major_version ~ '/bin') | map(attribute='path') | first }}"
+    new_pg_data_dir: "{{ new_pg_data_dir_result.files | selectattr('path', 'search', 'psql' ~ major_version ~ '/data') | map(attribute='path') | first }}"
+
+# Step 5: Fail if new directories are not found
+- name: Fail if new PostgreSQL directories are not found
+  ansible.builtin.fail:
+    msg: >
+      New PostgreSQL binary or data directory for version {{ major_version }} not found.
+      Ensure PostgreSQL {{ major_version }} is installed.
+      Searched for:
+      - Binary Path Matching: psql{{ major_version }}/bin
+      - Data Path Matching: psql{{ major_version }}/data
+
+      Found Binary Directories: {{ new_pg_bin_dir_result.files | map(attribute='path') | join(', ') }}
+      Found Data Directories: {{ new_pg_data_dir_result.files | map(attribute='path') | join(', ') }}
+  when: new_pg_bin_dir is undefined or new_pg_data_dir is undefined
+
+# Step 6: Stop old PostgreSQL server (ignore if not running)
+- name: Stop old PostgreSQL 11 server
+  ansible.builtin.shell: >
+    {{ postgres_versions[target_postgres_server].pg_bin_dir }}/pg_ctl -D {{ postgres_versions[target_postgres_server].pg_data_dir }} stop
+  ignore_errors: yes
+  register: stop_old_pg_result
+
+- name: Log old PostgreSQL server stop status
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== Stopping Old PostgreSQL Server ==========
+      Command Executed: pg_ctl -D {{ postgres_versions[target_postgres_server].pg_data_dir }} stop
+
+      Status: {{ 'Success' if stop_old_pg_result.rc == 0 else 'Already Stopped or Failed' }}
+      Standard Output:
+      {{ stop_old_pg_result.stdout }}
+      Standard Error:
+      {{ stop_old_pg_result.stderr }}
+      ====================================================
+  delegate_to: localhost
+
+# Step 7: Stop new PostgreSQL server if running
+- name: Stop new PostgreSQL {{ postgres_versions[target_postgres_server].postgres_version }} server
+  ansible.builtin.shell: >
+    {{ new_pg_bin_dir }}/pg_ctl -D {{ new_pg_data_dir }} stop
+  ignore_errors: yes
+  register: stop_new_pg_result
+
+- name: Log new PostgreSQL server stop status
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== Stopping New PostgreSQL Server ==========
+      Command Executed: pg_ctl -D {{ new_pg_data_dir }} stop
+
+      Status: {{ 'Success' if stop_new_pg_result.rc == 0 else 'Already Stopped or Failed' }}
+      Standard Output:
+      {{ stop_new_pg_result.stdout }}
+      Standard Error:
+      {{ stop_new_pg_result.stderr }}
+      ====================================================
+  delegate_to: localhost
+
+# Step 8: Perform the PostgreSQL Upgrade with Detailed Logs
+- name: Perform PostgreSQL Upgrade with Detailed Logs
+  ansible.builtin.shell: >
+    {{ new_pg_bin_dir }}/pg_upgrade
+    --old-datadir={{ postgres_versions[target_postgres_server].pg_data_dir }}
+    --new-datadir={{ new_pg_data_dir }}
+    --old-bindir={{ postgres_versions[target_postgres_server].pg_bin_dir }}
+    --new-bindir={{ new_pg_bin_dir }}
+  become: yes
+  become_user: postgres
+  register: upgrade_result
+  failed_when: upgrade_result.rc != 0
+
+- name: Log PostgreSQL Upgrade Details
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL Upgrade Detailed Report ==========
+      Upgrade Command Executed:
+      pg_upgrade --old-datadir={{ postgres_versions[target_postgres_server].pg_data_dir }} --new-datadir={{ new_pg_data_dir }} --old-bindir={{ postgres_versions[target_postgres_server].pg_bin_dir }} --new-bindir={{ new_pg_bin_dir }}
+
+      Return Code: {{ upgrade_result.rc }}
+
+      Standard Output:
+      {{ upgrade_result.stdout }}
+
+      Standard Error:
+      {{ upgrade_result.stderr }}
+      =========================================================
+  delegate_to: localhost
+
+# Step 9: Fail the playbook if the upgrade failed
+- name: Fail playbook if upgrade failed
+  ansible.builtin.fail:
+    msg: "PostgreSQL upgrade failed. Check the logs for detailed information."
+  when: upgrade_result.rc != 0
+
+# Step 10: Log success if upgrade completed successfully
+- name: Log PostgreSQL Upgrade Success
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL Upgrade Completed Successfully ==========
+      Version: {{ postgres_versions[target_postgres_server].postgres_version }}
+      Upgrade Completed at: {{ ansible_date_time.iso8601 }}
+      The upgrade was completed without any errors.
+      ===============================================================
+  when: upgrade_result.rc == 0
+  delegate_to: localhost
+

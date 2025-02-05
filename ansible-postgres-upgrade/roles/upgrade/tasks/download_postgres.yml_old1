@@ -1,0 +1,65 @@
+---
+- name: Ensure required directories exist
+  ansible.builtin.file:
+    path: "/usr/local/psql{{ postgres_versions[target_postgres_server].postgres_version }}"
+    state: directory
+    mode: '0755'
+
+- name: Download PostgreSQL {{ postgres_versions[target_postgres_server].postgres_version }} source tarball
+  ansible.builtin.get_url:
+    url: "{{ postgres_versions[target_postgres_server].pg_source_url }}"
+    dest: "/usr/local/src/postgresql-{{ postgres_versions[target_postgres_server].postgres_version }}.tar.gz"
+  register: download_status
+
+- name: Extract PostgreSQL {{ postgres_versions[target_postgres_server].postgres_version }} tarball
+  ansible.builtin.unarchive:
+    src: "/usr/local/src/postgresql-{{ postgres_versions[target_postgres_server].postgres_version }}.tar.gz"
+    dest: "/usr/local/psql{{ postgres_versions[target_postgres_server].postgres_version }}"
+    remote_src: yes
+  register: extract_status
+
+- name: Compile PostgreSQL from source
+  ansible.builtin.shell: |
+    cd /usr/local/psql{{ postgres_versions[target_postgres_server].postgres_version }}/postgresql-{{ postgres_versions[target_postgres_server].postgres_version }}
+    ./configure --prefix=/usr/local/psql{{ postgres_versions[target_postgres_server].postgres_version }}
+    make
+    make install
+  register: compile_status
+  changed_when: compile_status.rc == 0
+  ignore_errors: yes
+
+- name: Rollback if compilation fails
+  block:
+    - name: Remove extracted PostgreSQL source directory due to compilation failure
+      ansible.builtin.file:
+        path: "/usr/local/psql{{ postgres_versions[target_postgres_server].postgres_version }}/postgresql-{{ postgres_versions[target_postgres_server].postgres_version }}"
+        state: absent
+      when: compile_status.rc != 0
+
+    - name: Log compilation failure in upgrade log
+      ansible.builtin.blockinfile:
+        path: "{{ postgres_versions[target_postgres_server].log_file }}"
+        block: |
+          ========== PostgreSQL Installation Status ==========
+          Status: Failed during compilation.
+          Extracted directory removed. Please check the source or dependencies.
+          ===============================================
+      delegate_to: localhost
+  when: compile_status.rc != 0
+
+- name: Log PostgreSQL Installation Status
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL Installation Status ==========
+      Status: {{ 'Success' if compile_status.rc == 0 else 'Failed' }}
+      Directory: /usr/local/psql{{ postgres_versions[target_postgres_server].postgres_version }}
+      ===============================================
+  delegate_to: localhost
+  when: compile_status.rc == 0
+
+- name: Fail playbook if installation failed
+  ansible.builtin.fail:
+    msg: "PostgreSQL {{ postgres_versions[target_postgres_server].postgres_version }} installation failed. Check logs for details."
+  when: compile_status.rc != 0
+

@@ -1,0 +1,47 @@
+---
+- name: Backup postgresql.conf before modification
+  ansible.builtin.copy:
+    src: "{{ postgres_versions[target_postgres_server].pg_conf_path }}"
+    dest: "{{ postgres_versions[target_postgres_server].wal_backup_path }}"
+    remote_src: yes
+    backup: yes
+
+- name: Disable WAL Archiving in postgresql.conf
+  ansible.builtin.lineinfile:
+    path: "{{ postgres_versions[target_postgres_server].pg_conf_path }}"
+    regexp: '^archive_mode'
+    line: 'archive_mode = off'
+    state: present
+    backrefs: yes
+
+- name: Comment out archive_command in postgresql.conf
+  ansible.builtin.lineinfile:
+    path: "{{ postgres_versions[target_postgres_server].pg_conf_path }}"
+    regexp: '^archive_command'
+    line: '# archive_command = '''
+    state: present
+    backrefs: yes
+
+- name: Reload PostgreSQL configuration to apply WAL archiving changes
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    pg_ctl reload -D /usr/local/pgsql/data
+  become_user: postgres
+
+
+- name: Log WAL archiving status in upgrade13.log
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== WAL Archiving Disabled ==========
+      WAL archiving has been temporarily disabled for the upgrade.
+      Configuration changes made:
+        - archive_mode = off
+        - archive_command commented out
+      Timestamp: {{ ansible_date_time.iso8601 }}
+      ====================================================
+    create: yes
+    mode: '0644'
+
+
+

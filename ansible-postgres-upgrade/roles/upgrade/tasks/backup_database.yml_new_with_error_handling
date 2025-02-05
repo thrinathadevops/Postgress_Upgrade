@@ -1,0 +1,147 @@
+---
+- name: Perform PostgreSQL Physical Backup
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    pg_basebackup -U postgres -D /backup/base_backup_{{ ansible_date_time.iso8601_basic_short }} -Ft -z -Xs -P
+  become: yes
+  become_user: postgres
+  register: physical_backup_result
+  changed_when: false
+  ignore_errors: true  # Allow handling of specific errors without immediate task failure
+
+# Check for WAL Server Replication Timeout Error
+- name: Check for WAL server replication timeout error
+  ansible.builtin.set_fact:
+    wal_timeout_error_detected: "{{ 'terminating walreceiver process due to replication timeout' in physical_backup_result.stderr }}"
+
+# Adjust settings if WAL timeout error detected
+- name: Adjust PostgreSQL settings for WAL timeout if error detected
+  ansible.builtin.shell: >
+    psql -U postgres -c "ALTER SYSTEM SET wal_receiver_timeout = '2min';"
+  become: yes
+  become_user: postgres
+  when: wal_timeout_error_detected
+  register: adjust_wal_timeout_result
+
+- name: Reload PostgreSQL to apply new WAL timeout settings
+  ansible.builtin.shell: systemctl reload {{ postgres_versions[target_postgres_server].pg_service_name }}
+  become: yes
+  when: wal_timeout_error_detected and adjust_wal_timeout_result.rc == 0
+
+# Retry the physical backup if WAL timeout error occurred
+- name: Retry PostgreSQL Physical Backup after adjusting WAL timeout
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    pg_basebackup -U postgres -D /backup/base_backup_retry_{{ ansible_date_time.iso8601_basic_short }} -Ft -z -Xs -P
+  become: yes
+  become_user: postgres
+  register: retry_backup_result
+  when: wal_timeout_error_detected
+  changed_when: false
+  ignore_errors: true
+
+# Log PostgreSQL Physical Backup Status
+- name: Log PostgreSQL Physical Backup Status
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL Physical Backup ========== 
+      {% if physical_backup_result.rc == 0 %}
+      Backup Directory: /backup/base_backup_{{ ansible_date_time.iso8601_basic_short }}
+      Status: Success
+      {% elif wal_timeout_error_detected and retry_backup_result.rc == 0 %}
+      Backup Directory (Retry): /backup/base_backup_retry_{{ ansible_date_time.iso8601_basic_short }}
+      Status: Success after WAL timeout adjustment
+      {% else %}
+      Backup Directory: /backup/base_backup_{{ ansible_date_time.iso8601_basic_short }}
+      Status: Failed
+      Error: {{ physical_backup_result.stderr if not wal_timeout_error_detected else retry_backup_result.stderr }}
+      {% endif %}
+      ================================================
+    marker: ""
+  delegate_to: localhost
+
+# Fail if Backup Fails Even After Retry
+- name: Fail if Physical Backup Fails after retry
+  ansible.builtin.fail:
+    msg: "Physical backup failed after retrying with adjusted WAL timeout settings. Check logs for details."
+  when:
+    - physical_backup_result.rc != 0
+    - (retry_backup_result.rc is defined and retry_backup_result.rc != 0) or not wal_timeout_error_detected
+
+
+# Optional Logical Backup
+- name: Perform PostgreSQL Logical Backup (Optional)
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    pg_dumpall -U postgres -h localhost -f /backup/full_backup_{{ ansible_date_time.iso8601_basic_short }}.sql
+  become: yes
+  become_user: postgres
+  register: logical_backup_result
+  changed_when: false
+  ignore_errors: true  # Allow further error handling
+  when: logical_backup_enabled | default(true)
+
+# Check for WAL server replication timeout error during logical backup
+- name: Check for WAL server replication timeout error in logical backup
+  ansible.builtin.set_fact:
+    wal_timeout_error_detected_logical: "{{ 'terminating walreceiver process due to replication timeout' in logical_backup_result.stderr }}"
+  when: logical_backup_enabled | default(true)
+
+# Adjust settings if WAL timeout error detected during logical backup
+- name: Adjust PostgreSQL settings for WAL timeout (Logical Backup)
+  ansible.builtin.shell: >
+    psql -U postgres -c "ALTER SYSTEM SET wal_receiver_timeout = '2min';"
+  become: yes
+  become_user: postgres
+  when: wal_timeout_error_detected_logical
+  register: adjust_wal_timeout_result_logical
+
+- name: Reload PostgreSQL to apply new WAL timeout settings (Logical Backup)
+  ansible.builtin.shell: systemctl reload {{ postgres_versions[target_postgres_server].pg_service_name }}
+  become: yes
+  when: wal_timeout_error_detected_logical and adjust_wal_timeout_result_logical.rc == 0
+
+# Retry the logical backup if WAL timeout error occurred
+- name: Retry PostgreSQL Logical Backup after adjusting WAL timeout
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    pg_dumpall -U postgres -h localhost -f /backup/full_backup_retry_{{ ansible_date_time.iso8601_basic_short }}.sql
+  become: yes
+  become_user: postgres
+  register: retry_logical_backup_result
+  when: wal_timeout_error_detected_logical
+  changed_when: false
+  ignore_errors: true
+
+# Log PostgreSQL Logical Backup Status
+- name: Log PostgreSQL Logical Backup Status
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL Logical Backup ==========
+      {% if logical_backup_result.rc == 0 %}
+      Backup File: /backup/full_backup_{{ ansible_date_time.iso8601_basic_short }}.sql
+      Status: Success
+      {% elif wal_timeout_error_detected_logical and retry_logical_backup_result.rc == 0 %}
+      Backup File (Retry): /backup/full_backup_retry_{{ ansible_date_time.iso8601_basic_short }}.sql
+      Status: Success after WAL timeout adjustment
+      {% else %}
+      Backup File: /backup/full_backup_{{ ansible_date_time.iso8601_basic_short }}.sql
+      Status: Failed
+      Error: {{ logical_backup_result.stderr if not wal_timeout_error_detected_logical else retry_logical_backup_result.stderr }}
+      {% endif %}
+      ===============================================
+    marker: ""
+  delegate_to: localhost
+  when: logical_backup_enabled | default(true)
+
+# Fail if Logical Backup Fails Even After Retry
+- name: Fail if Logical Backup Fails after retry
+  ansible.builtin.fail:
+    msg: "Logical backup failed after retrying with adjusted WAL timeout settings. Check logs for details."
+  when:
+    - logical_backup_enabled | default(true)
+    - logical_backup_result.rc != 0
+    - (retry_logical_backup_result.rc is defined and retry_logical_backup_result.rc != 0) or not wal_timeout_error_detected_logical
+

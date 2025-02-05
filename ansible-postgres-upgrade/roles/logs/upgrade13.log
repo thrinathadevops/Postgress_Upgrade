@@ -1,0 +1,82 @@
+========== PostgreSQL Version ==========
+                                                 version                                                 
+---------------------------------------------------------------------------------------------------------
+ PostgreSQL 13.9 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 8.5.0 20210514 (Red Hat 8.5.0-22), 64-bit
+(1 row)
+========================================
+
+========== Database Connectivity ==========
+Status: Success
+Output:
+ ?column? 
+----------
+        1
+(1 row)
+===========================================
+
+========== PostgreSQL Service Status ==========
+● postgresql-13.9.service - PostgreSQL 13.9 database server
+   Loaded: loaded (/etc/systemd/system/postgresql-13.9.service; enabled; vendor preset: disabled)
+   Active: active (running) since Wed 2025-02-05 01:29:05 IST; 3h 8min ago
+ Main PID: 199125 (postgres)
+    Tasks: 7 (limit: 18259)
+   Memory: 19.7M
+   CGroup: /system.slice/postgresql-13.9.service
+           ├─199125 /usr/local/psql13/bin/postgres -D /usr/local/psql13/data
+           ├─199127 postgres: checkpointer 
+           ├─199128 postgres: background writer 
+           ├─199129 postgres: walwriter 
+           ├─199130 postgres: autovacuum launcher 
+           ├─199131 postgres: stats collector 
+           └─199132 postgres: logical replication launcher 
+
+Feb 05 01:29:05 tomcat.localdomain systemd[1]: Starting PostgreSQL 13.9 database server...
+Feb 05 01:29:05 tomcat.localdomain pg_ctl[199123]: waiting for server to start.... done
+Feb 05 01:29:05 tomcat.localdomain pg_ctl[199123]: server started
+Feb 05 01:29:05 tomcat.localdomain systemd[1]: Started PostgreSQL 13.9 database server.
+=================================================
+
+========== Port Listening Status ==========
+tcp        0      0 127.0.0.1:5432          0.0.0.0:*               LISTEN      199125/postgres     
+tcp6       0      0 ::1:5432                :::*                    LISTEN      199125/postgres     
+============================================
+
+========== PostgreSQL Extensions ==========
+                                     List of installed extensions
+        Name        | Version |   Schema   |                        Description                        
+--------------------+---------+------------+-----------------------------------------------------------
+ pg_stat_statements | 1.6     | public     | track execution statistics of all SQL statements executed
+ plpgsql            | 1.0     | pg_catalog | PL/pgSQL procedural language
+(2 rows)
+===========================================
+
+# BEGIN ANSIBLE MANAGED BLOCK
+========== Configuration File Differences ==========
+postgresql.conf Differences:
+2,3c2
+< shared_preload_libraries = 'pg_stat_statements'
+< pg_stat_statements.track = all
+---
+> unix_socket_directories = '/tmp'	# comma-separated list of directories
+7,8c6
+< min_wal_size = 3000MB
+< archive_mode = off
+---
+> min_wal_size = 80MB
+16a15,16
+> shared_preload_libraries = 'pg_stat_statements'	# (change requires restart)
+> dynamic_library_path = '$libdir:/usr/local/psql13/lib/postgresql'
+
+pg_hba.conf Differences:
+7,8d6
+< host    all             all             0.0.0.0/0               reject
+< host    all             all             ::/0                    reject
+================================================================
+# END ANSIBLE MANAGED BLOCK
+========== Application Test Query ==========
+ current_database | current_user |               now                
+------------------+--------------+----------------------------------
+ postgres         | postgres     | 2025-02-05 04:37:55.085122+05:30
+(1 row)
+============================================
+

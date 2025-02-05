@@ -1,0 +1,82 @@
+########this playbook create directory like psql13 insted of psql13.9###########
+---
+- name: Extract major version number for directory naming
+  set_fact:
+    major_version: "{{ postgres_versions[target_postgres_server].postgres_version.split('.')[0] }}"
+
+- name: Check if PostgreSQL {{ postgres_versions[target_postgres_server].postgres_version }} is already installed
+  ansible.builtin.command: "/usr/local/psql{{ major_version }}/bin/psql --version"
+  register: postgres_installed
+  ignore_errors: true
+  changed_when: false
+
+- name: Skip installation if PostgreSQL {{ postgres_versions[target_postgres_server].postgres_version }} is already present
+  ansible.builtin.debug:
+    msg: "PostgreSQL {{ postgres_versions[target_postgres_server].postgres_version }} is already installed. Skipping installation."
+  when: postgres_installed.rc == 0
+
+- name: Ensure required directories exist
+  ansible.builtin.file:
+    path: "/usr/local/psql{{ major_version }}"
+    state: directory
+    mode: '0755'
+  when: postgres_installed.rc != 0
+
+- name: Download PostgreSQL {{ postgres_versions[target_postgres_server].postgres_version }} source tarball
+  ansible.builtin.get_url:
+    url: "{{ postgres_versions[target_postgres_server].pg_source_url }}"
+    dest: "/usr/local/src/postgresql-{{ postgres_versions[target_postgres_server].postgres_version }}.tar.gz"
+  register: download_status
+  when: postgres_installed.rc != 0
+
+- name: Extract PostgreSQL {{ postgres_versions[target_postgres_server].postgres_version }} tarball
+  ansible.builtin.unarchive:
+    src: "/usr/local/src/postgresql-{{ postgres_versions[target_postgres_server].postgres_version }}.tar.gz"
+    dest: "/usr/local/psql{{ major_version }}"
+    remote_src: yes
+  when: postgres_installed.rc != 0
+
+- name: Compile PostgreSQL from source
+  ansible.builtin.shell: |
+    cd /usr/local/psql{{ major_version }}/postgresql-{{ postgres_versions[target_postgres_server].postgres_version }}
+    ./configure --prefix=/usr/local/psql{{ major_version }}
+    make
+    make install
+  register: compile_status
+  changed_when: compile_status.rc == 0
+  when: postgres_installed.rc != 0
+
+- name: Remove extracted PostgreSQL source directory due to compilation failure
+  ansible.builtin.file:
+    path: "/usr/local/psql{{ major_version }}/postgresql-{{ postgres_versions[target_postgres_server].postgres_version }}"
+    state: absent
+  when: compile_status.rc != 0
+
+- name: Log compilation failure in upgrade log
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL Installation Status ==========
+      Status: Failed during compilation.
+      Directory: /usr/local/psql{{ major_version }}
+      Please check the compilation logs for details.
+      ===============================================
+  when: compile_status.rc != 0
+  delegate_to: localhost
+
+- name: Log PostgreSQL Installation Status
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL Installation Status ==========
+      Status: Success
+      Directory: /usr/local/psql{{ major_version }}
+      ===============================================
+  when: compile_status.rc == 0
+  delegate_to: localhost
+
+- name: Fail playbook if installation failed
+  ansible.builtin.fail:
+    msg: "PostgreSQL installation failed during compilation. Check the upgrade log for details."
+  when: compile_status.rc != 0
+

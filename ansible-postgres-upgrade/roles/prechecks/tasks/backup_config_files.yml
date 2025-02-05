@@ -1,0 +1,32 @@
+- name: Backup PostgreSQL configuration files
+  become_user: postgres
+  ansible.builtin.shell: >
+    cp /usr/local/pgsql/data/postgresql.conf /backup/ &&
+    cp /usr/local/pgsql/data/pg_hba.conf /backup/ &&
+    cp /usr/local/pgsql/data/postgresql.auto.conf /backup/
+  register: config_backup_result
+  changed_when: false
+  ignore_errors: true
+
+- name: Log PostgreSQL configuration backup result
+  ansible.builtin.blockinfile:
+    path: /home/ansible/ansible-postgres-upgrade/roles/logs/precheck.log
+    block: |
+      
+      ========== PostgreSQL Configuration Backup ==========
+      Backup Location: /backup/
+      Files Backed Up:
+      - postgresql.conf
+      - pg_hba.conf
+      - postgresql.auto.conf
+      Status: {{ 'Success' if config_backup_result.rc == 0 else 'Failed' }}
+      =====================================================
+
+    marker: ""
+  delegate_to: localhost
+
+- name: Fail if backup was unsuccessful
+  ansible.builtin.fail:
+    msg: "Backup of PostgreSQL configuration files failed. Check logs for more details."
+  when: config_backup_result.rc != 0
+

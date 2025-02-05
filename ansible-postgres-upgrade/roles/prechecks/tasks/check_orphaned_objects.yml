@@ -1,0 +1,43 @@
+---
+- name: Check for Orphaned Objects
+  ansible.builtin.shell: >
+    export PATH=$PATH:/usr/local/pgsql/bin &&
+    psql -U postgres -h localhost -d postgres -Atc "
+    SELECT 'DO' WHERE NOT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_class c
+      WHERE c.relkind IN ('r', 'v', 'm', 'S', 'f', 'p')
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_namespace n WHERE n.oid = c.relnamespace
+      )
+    );"
+  become: yes
+  become_user: postgres
+  register: orphaned_objects
+  changed_when: false
+
+- name: Log orphaned objects check result
+  ansible.builtin.blockinfile:
+    path: /home/ansible/ansible-postgres-upgrade/roles/logs/precheck.log
+    block: |
+      ========== Orphaned Objects Check ==========
+      {% if orphaned_objects.stdout.strip() != '' %}
+      No orphaned objects detected.
+      {% else %}
+      Orphaned objects found. Review the details below:
+      {{ orphaned_objects.stdout }}
+      {% endif %}
+      ============================================
+    marker: ""
+  delegate_to: localhost
+
+- name: Fail if orphaned objects are found
+  ansible.builtin.fail:
+    msg: "Orphaned objects detected. Review 'precheck.log' for details and resolve before proceeding."
+  when: orphaned_objects.stdout.strip() == ''  # Fail when no output is returned, indicating orphaned objects exist
+  ignore_errors: true
+
+- name: Success message if no orphaned objects are found
+  ansible.builtin.debug:
+    msg: "No orphaned objects detected. Safe to proceed with the upgrade."
+  when: orphaned_objects.stdout.strip() != ''  # Success when 'DO' is returned, indicating no orphaned objects
+

@@ -1,0 +1,18 @@
+- name: Run Pre-Upgrade Prechecks
+  ansible.builtin.include_tasks: validate_system.yml
+
+- name: Backup PostgreSQL Database
+  ansible.builtin.include_tasks: backup_database.yml
+
+- name: Check Disk Space
+  ansible.builtin.include_tasks: check_disk_space.yml
+
+- name: Record Installed Extensions
+  ansible.builtin.include_tasks: record_extensions.yml
+
+- name: Backup PostgreSQL Configuration Files
+  ansible.builtin.include_tasks: backup_config_files.yml
+
+- name: Check for Orphaned Objects
+  ansible.builtin.include_tasks: check_orphaned_objects.yml
+

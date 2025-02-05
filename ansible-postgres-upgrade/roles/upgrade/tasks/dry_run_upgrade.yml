@@ -1,0 +1,122 @@
+---
+- name: Extract major version number for directory naming
+  set_fact:
+    major_version: "{{ (postgres_versions[target_postgres_server].postgres_version | string).split('.')[0] }}"
+
+# Find PostgreSQL binary and data directories dynamically
+- name: Find new PostgreSQL binary directory dynamically
+  ansible.builtin.find:
+    paths: "/usr/local"
+    file_type: directory
+    patterns: "bin"
+    recurse: yes
+  register: new_pg_bin_dir_result
+
+- name: Find new PostgreSQL data directory dynamically
+  ansible.builtin.find:
+    paths: "/usr/local"
+    file_type: directory
+    patterns: "data"
+    recurse: yes
+  register: new_pg_data_dir_result
+
+# Debug output to trace what's being found
+- name: Debug found PostgreSQL directories
+  debug:
+    msg: |
+      Found Binary Directories:
+      {{ new_pg_bin_dir_result.files | map(attribute='path') | list }}
+
+      Found Data Directories:
+      {{ new_pg_data_dir_result.files | map(attribute='path') | list }}
+
+# Filter the correct directories matching PostgreSQL version
+- name: Set fact for correct PostgreSQL directories
+  set_fact:
+    new_pg_bin_dir: "{{ new_pg_bin_dir_result.files | selectattr('path', 'search', 'psql' ~ major_version ~ '/bin') | map(attribute='path') | first }}"
+    new_pg_data_dir: "{{ new_pg_data_dir_result.files | selectattr('path', 'search', 'psql' ~ major_version ~ '/data') | map(attribute='path') | first }}"
+
+# Validate if directories are correctly detected
+- name: Fail if new PostgreSQL directories are not found
+  ansible.builtin.fail:
+    msg: "New PostgreSQL binary or data directory for version {{ major_version }} not found. Ensure PostgreSQL {{ major_version }} is installed."
+  when:
+    - new_pg_bin_dir is undefined or new_pg_data_dir is undefined
+
+# Perform Dry Run Upgrade
+- name: Perform PostgreSQL Dry Run Upgrade
+  ansible.builtin.shell: >
+    {{ new_pg_bin_dir }}/pg_upgrade
+    --old-datadir={{ postgres_versions[target_postgres_server].pg_data_dir }}
+    --new-datadir={{ new_pg_data_dir }}
+    --old-bindir={{ postgres_versions[target_postgres_server].pg_bin_dir }}
+    --new-bindir={{ new_pg_bin_dir }}
+    --check
+  become: yes
+  become_user: postgres
+  register: dry_run_result
+  failed_when: dry_run_result.rc != 0 and 'loadable_libraries.txt' not in dry_run_result.stdout
+
+# Check for missing libraries file and log its contents
+- name: Check for missing libraries file
+  ansible.builtin.stat:
+    path: "/var/lib/pgsql/loadable_libraries.txt"
+  register: missing_libs_file
+
+- name: Log missing libraries if file exists
+  ansible.builtin.shell: cat /var/lib/pgsql/loadable_libraries.txt
+  when: missing_libs_file.stat.exists
+  register: missing_libraries_output
+  changed_when: false
+
+- name: Log missing libraries to upgrade log
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== Missing Loadable Libraries ==========
+      The following libraries are missing and causing the upgrade to fail:
+      
+      {{ missing_libraries_output.stdout }}
+
+      Please install the missing libraries in the new PostgreSQL {{ postgres_versions[target_postgres_server].postgres_version }} installation.
+      ===============================================
+  when: missing_libs_file.stat.exists
+  delegate_to: localhost
+# Enhanced logging for detailed failure information
+- name: Log detailed dry run failure output
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL Dry Run Upgrade Details ==========
+      Command: {{ new_pg_bin_dir }}/pg_upgrade --old-datadir={{ postgres_versions[target_postgres_server].pg_data_dir }} --new-datadir={{ new_pg_data_dir }} --old-bindir={{ postgres_versions[target_postgres_server].pg_bin_dir }} --new-bindir={{ new_pg_bin_dir }} --check
+
+      Standard Output:
+      {{ dry_run_result.stdout }}
+
+      Standard Error:
+      {{ dry_run_result.stderr }}
+
+      Return Code:
+      {{ dry_run_result.rc }}
+      ===============================================
+  when: dry_run_result.rc != 0
+  delegate_to: localhost
+
+
+# Log the dry run result
+- name: Log Dry Run Result
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL Dry Run Upgrade ==========
+      Version: {{ postgres_versions[target_postgres_server].postgres_version }}
+      Status: {{ 'Success' if dry_run_result.rc == 0 else 'Failed' }}
+      ===============================================
+  delegate_to: localhost
+
+# Fail the playbook if the dry run failed
+- name: Fail playbook if dry run upgrade failed
+  ansible.builtin.fail:
+    msg: "PostgreSQL dry run upgrade failed. Check the logs for details."
+  when: dry_run_result.rc != 0
+

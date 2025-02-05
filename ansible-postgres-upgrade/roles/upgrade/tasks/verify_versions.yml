@@ -1,0 +1,37 @@
+---
+- name: Check old PostgreSQL version
+  ansible.builtin.shell: "/usr/local/pgsql/bin/psql --version"
+  register: old_version_result
+  changed_when: false
+  ignore_errors: true
+
+- name: Find new PostgreSQL binary directory
+  ansible.builtin.shell: "find /usr/local -type f -name 'psql' -path '*/psql*/bin/psql' | sort -V | tail -n 1"
+  register: new_pg_bin_path
+  changed_when: false
+  ignore_errors: true
+
+- name: Check new PostgreSQL version from detected directory
+  ansible.builtin.shell: "{{ new_pg_bin_path.stdout }} --version"
+  register: new_version_result
+  changed_when: false
+  ignore_errors: true
+  when: new_pg_bin_path.stdout != ""
+
+- name: Log PostgreSQL Version Verification
+  ansible.builtin.blockinfile:
+    path: "/home/ansible/ansible-postgres-upgrade/roles/logs/upgrade13.log"
+    block: |
+      ========== PostgreSQL Version Verification ==========
+      Old Version: {{ old_version_result.stdout | default('Not Found') }}
+      New Binary Path: {{ new_pg_bin_path.stdout | default('Not Found') }}
+      New Version: {{ new_version_result.stdout | default('Not Found') }}
+      =====================================================
+    marker: ""
+  delegate_to: localhost
+
+- name: Fail if either PostgreSQL version is not found
+  ansible.builtin.fail:
+    msg: "Either the old or new PostgreSQL version was not found. Check the upgrade log for details."
+  when: old_version_result.stdout is undefined or new_version_result.stdout is undefined
+

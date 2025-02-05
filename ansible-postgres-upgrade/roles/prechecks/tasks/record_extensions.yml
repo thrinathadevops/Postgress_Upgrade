@@ -1,0 +1,21 @@
+- name: List installed PostgreSQL extensions
+  become_user: postgres
+  ansible.builtin.shell: >
+    /usr/local/pgsql/bin/psql -U postgres -c "SELECT extname FROM pg_extension;"
+  register: pg_extensions
+  changed_when: false
+
+- name: Log PostgreSQL extensions to prechecks log
+  ansible.builtin.blockinfile:
+    path: /home/ansible/ansible-postgres-upgrade/roles/logs/precheck.log
+    block: |
+      
+      ========== Installed PostgreSQL Extensions ==========
+      {% for ext in pg_extensions.stdout_lines %}
+      {{ ext }}
+      {% endfor %}
+      =====================================================
+
+    marker: ""
+  delegate_to: localhost
+

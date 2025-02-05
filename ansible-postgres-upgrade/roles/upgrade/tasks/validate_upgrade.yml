@@ -1,0 +1,146 @@
+---
+# Step 1: Confirm PostgreSQL Version
+- name: Confirm PostgreSQL Version
+  ansible.builtin.shell: >
+    /usr/local/psql13/bin/psql -c "SELECT version();"
+  become: yes
+  become_user: postgres
+  register: version_result
+  failed_when: version_result.rc != 0
+
+- name: Log PostgreSQL Version
+  ansible.builtin.lineinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    line: |
+      ========== PostgreSQL Version ==========
+      {{ version_result.stdout }}
+      ========================================
+    create: yes
+    insertafter: EOF
+  delegate_to: localhost
+
+# Step 2: Validate Database Connectivity
+- name: Validate Database Connectivity
+  ansible.builtin.shell: >
+    /usr/local/psql13/bin/psql -d postgres -c "SELECT 1;"
+  become: yes
+  become_user: postgres
+  register: connectivity_result
+  failed_when: connectivity_result.rc != 0
+
+- name: Log Database Connectivity Status
+  ansible.builtin.lineinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    line: |
+      ========== Database Connectivity ==========
+      Status: {{ 'Success' if connectivity_result.rc == 0 else 'Failed' }}
+      Output:
+      {{ connectivity_result.stdout }}
+      ===========================================
+    insertafter: EOF
+  delegate_to: localhost
+
+# Step 3: Check if PostgreSQL Service is Running
+- name: Check PostgreSQL Service Status
+  ansible.builtin.shell: >
+    systemctl status postgresql-13.9.service
+  register: service_status
+  failed_when: "'Active: active (running)' not in service_status.stdout"
+
+- name: Log Service Status
+  ansible.builtin.lineinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    line: |
+      ========== PostgreSQL Service Status ==========
+      {{ service_status.stdout }}
+      =================================================
+    insertafter: EOF
+  delegate_to: localhost
+
+# Step 4: Confirm PostgreSQL is Listening on Port 5432
+- name: Check if PostgreSQL is Listening on Port 5432
+  ansible.builtin.shell: >
+    netstat -plnt | grep 5432
+  register: port_check
+  failed_when: port_check.rc != 0
+
+- name: Log Port Listening Status
+  ansible.builtin.lineinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    line: |
+      ========== Port Listening Status ==========
+      {{ port_check.stdout }}
+      ============================================
+    insertafter: EOF
+  delegate_to: localhost
+
+# Step 5: Check for Extension Compatibility
+- name: Check PostgreSQL Extensions
+  ansible.builtin.shell: >
+    /usr/local/psql13/bin/psql -d postgres -c "\dx"
+  become: yes
+  become_user: postgres
+  register: extensions_result
+  failed_when: extensions_result.rc != 0
+
+- name: Log Extension Status
+  ansible.builtin.lineinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    line: |
+      ========== PostgreSQL Extensions ==========
+      {{ extensions_result.stdout }}
+      ===========================================
+    insertafter: EOF
+  delegate_to: localhost
+
+# Step 1: Filter uncommented lines from postgresql.conf and compare
+- name: Compare uncommented postgresql.conf Files
+  ansible.builtin.shell: |
+    grep -E '^[^#[:space:]]' /usr/local/pgsql/data/postgresql.conf > /tmp/old_postgresql_uncommented.conf
+    grep -E '^[^#[:space:]]' /usr/local/psql13/data/postgresql.conf > /tmp/new_postgresql_uncommented.conf
+    diff /tmp/old_postgresql_uncommented.conf /tmp/new_postgresql_uncommented.conf
+  register: postgresql_conf_diff
+  ignore_errors: yes
+
+# Step 2: Filter uncommented lines from pg_hba.conf and compare
+- name: Compare uncommented pg_hba.conf Files
+  ansible.builtin.shell: |
+    grep -E '^[^#[:space:]]' /usr/local/pgsql/data/pg_hba.conf > /tmp/old_pg_hba_uncommented.conf
+    grep -E '^[^#[:space:]]' /usr/local/psql13/data/pg_hba.conf > /tmp/new_pg_hba_uncommented.conf
+    diff /tmp/old_pg_hba_uncommented.conf /tmp/new_pg_hba_uncommented.conf
+  register: pg_hba_conf_diff
+  ignore_errors: yes
+
+# Step 3: Log only differences in uncommented settings
+- name: Log Configuration Differences
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== Configuration File Differences ==========
+      postgresql.conf Differences:
+      {{ postgresql_conf_diff.stdout | default('No uncommented differences found.') }}
+
+      pg_hba.conf Differences:
+      {{ pg_hba_conf_diff.stdout | default('No uncommented differences found.') }}
+      ================================================================
+  delegate_to: localhost
+
+# Step 7: Run Test Queries from Application Layer
+- name: Run Test Query from Application Layer
+  ansible.builtin.shell: >
+    /usr/local/psql13/bin/psql -d postgres -c "SELECT current_database(), current_user, now();"
+  become: yes
+  become_user: postgres
+  register: app_query_result
+  failed_when: app_query_result.rc != 0
+
+- name: Log Application Query Results
+  ansible.builtin.lineinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    line: |
+      ========== Application Test Query ==========
+      {{ app_query_result.stdout }}
+      ============================================
+    insertafter: EOF
+  delegate_to: localhost
+

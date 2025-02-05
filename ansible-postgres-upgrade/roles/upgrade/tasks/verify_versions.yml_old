@@ -1,0 +1,35 @@
+---
+- name: Verify Installed PostgreSQL Versions
+  vars:
+    old_pg_bin_dir: "{{ postgres_versions[target_postgres_server].pg_bin_dir }}"
+    new_pg_bin_dir: "{{ postgres_versions[target_postgres_server].new_pg_bin_dir }}"
+
+  tasks:
+    - name: Check old PostgreSQL version
+      ansible.builtin.shell: "{{ old_pg_bin_dir }}/psql --version"
+      register: old_version_result
+      changed_when: false
+      ignore_errors: true  # In case old version is missing
+
+    - name: Check new PostgreSQL version
+      ansible.builtin.shell: "{{ new_pg_bin_dir }}/psql --version"
+      register: new_version_result
+      changed_when: false
+      ignore_errors: true  # In case new version is missing
+
+    - name: Log PostgreSQL Version Verification
+      ansible.builtin.blockinfile:
+        path: "{{ postgres_versions[target_postgres_server].log_file }}"
+        block: |
+          ========== PostgreSQL Version Verification ==========
+          Old Version: {{ old_version_result.stdout | default('Not Found') }}
+          New Version: {{ new_version_result.stdout | default('Not Found') }}
+          =====================================================
+      marker: ""
+      delegate_to: localhost
+
+    - name: Fail if either PostgreSQL version is not found
+      ansible.builtin.fail:
+        msg: "Either the old or new PostgreSQL version was not found. Check the upgrade log for details."
+      when: old_version_result.stdout is undefined or new_version_result.stdout is undefined
+

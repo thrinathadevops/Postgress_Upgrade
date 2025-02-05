@@ -1,0 +1,90 @@
+---
+# Step 1: Ensure Log Directory Exists and Set Proper Permissions
+- name: Create PostgreSQL log directory if it doesn't exist
+  ansible.builtin.file:
+    path: /var/log/postgresql
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: '0755'
+
+# Step 2: Check if the PostgreSQL 13.9 service exists
+- name: Check if PostgreSQL 13.9 systemd service exists
+  ansible.builtin.stat:
+    path: /etc/systemd/system/postgresql-13.9.service
+  register: pg_service_check
+
+# Step 3: Stop Any Running PostgreSQL Processes (if necessary)
+- name: Stop any running PostgreSQL processes (if server is not using systemd)
+  ansible.builtin.shell: |
+    pkill -u postgres || true
+  when: not pg_service_check.stat.exists
+  ignore_errors: yes
+
+# Step 4: Start PostgreSQL via Systemd Service if Available
+- name: Start PostgreSQL 13.9 via systemd service
+  ansible.builtin.systemd:
+    name: postgresql-13.9.service
+    state: started
+  when: pg_service_check.stat.exists
+  register: service_start_result
+
+# Step 5: Enable Service on Boot
+- name: Enable PostgreSQL 13.9 service to start on boot
+  ansible.builtin.systemd:
+    name: postgresql-13.9.service
+    enabled: yes
+  when: pg_service_check.stat.exists
+
+# Step 6: Start PostgreSQL Manually if No Systemd Service Exists
+- name: Check if PostgreSQL is already running (manual start scenario)
+  ansible.builtin.shell: |
+    /usr/local/psql13/bin/psql -c "SELECT version();" || echo "Not running"
+  become: yes
+  become_user: postgres
+  register: pg_status_check
+  failed_when: false
+
+- name: Start PostgreSQL 13.9 server manually if not running
+  ansible.builtin.shell: >
+    /usr/local/psql13/bin/pg_ctl start -D /usr/local/psql13/data -l /var/log/postgresql/postgresql-13.9.log
+  become: yes
+  become_user: postgres
+  when:
+    - not pg_service_check.stat.exists
+    - "'Not running' in pg_status_check.stdout"
+  register: manual_start_result
+
+# Step 7: Log Startup Status (Service or Manual)
+- name: Log PostgreSQL server/service start status
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL 13.9 Startup Status ==========
+      {% if pg_service_check.stat.exists %}
+      Started via systemd service: postgresql-13.9.service
+      Service Status: {{ 'Running' if service_start_result.changed else 'Already Running' }}
+      {% else %}
+      Manual Startup:
+      {{ 'Server started successfully.' if 'server started' in manual_start_result.stdout else 'Server was already running.' }}
+      {% endif %}
+      =====================================================
+  delegate_to: localhost
+
+# Step 8: Validate Service or Server Status
+- name: Validate PostgreSQL status
+  ansible.builtin.shell: |
+    /usr/local/psql13/bin/psql -c "SELECT version();"
+  become: yes
+  become_user: postgres
+  register: pg_validation_result
+
+- name: Log PostgreSQL Version Validation
+  ansible.builtin.blockinfile:
+    path: "{{ postgres_versions[target_postgres_server].log_file }}"
+    block: |
+      ========== PostgreSQL 13.9 Version Validation ==========
+      {{ pg_validation_result.stdout }}
+      =========================================================
+  delegate_to: localhost
+

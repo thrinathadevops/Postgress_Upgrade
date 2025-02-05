@@ -1,0 +1,114 @@
+---
+- name: Check OS Kernel Version
+  ansible.builtin.command: uname -r
+  register: os_version
+
+- name: Check Architecture
+  ansible.builtin.command: uname -m
+  register: architecture
+
+# Gather OS and System Information
+- name: Gather OS and Architecture Information
+  ansible.builtin.setup:
+
+# Log OS details
+- name: Log OS and Architecture details
+  ansible.builtin.blockinfile:
+    path: /home/ansible/ansible-postgres-upgrade/roles/logs/precheck.log
+    block: |
+      ========== OS Details ==========
+      Distribution: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+      Kernel Version: {{ os_version.stdout }}
+      Architecture: {{ architecture.stdout }}
+      =================================
+    marker: ""
+  delegate_to: localhost
+
+# Check Available Memory
+- name: Check total system memory
+  ansible.builtin.shell: free -m | grep Mem | awk '{print $2}'
+  register: total_memory
+
+- name: Log Memory details
+  ansible.builtin.blockinfile:
+    path: /home/ansible/ansible-postgres-upgrade/roles/logs/precheck.log
+    block: |
+      ========== Memory Details ==========
+      Total Memory: {{ total_memory.stdout }} MB
+      ====================================
+    marker: ""
+  delegate_to: localhost
+
+# Check Disk Space for PostgreSQL Data Directory
+- name: Check disk space for PostgreSQL data directory
+  ansible.builtin.command: df -h /usr/local/pgsql/data
+  register: disk_space
+
+- name: Log Disk Space details
+  ansible.builtin.blockinfile:
+    path: /home/ansible/ansible-postgres-upgrade/roles/logs/precheck.log
+    block: |
+      ========== Disk Space Details ==========
+      {{ disk_space.stdout }}
+      ========================================
+    marker: ""
+  delegate_to: localhost
+
+# Define PostgreSQL dependencies
+- name: Define PostgreSQL dependencies
+  ansible.builtin.set_fact:
+    postgres_dependencies:
+      - { name: "gcc", version: "8.5.0-22.el8" }
+      - { name: "make", version: "4.2.1-11.el8" }
+      - { name: "zlib-devel", version: "1.2.11-25.el8" }
+      - { name: "wget", version: "1.20.3-10.el8" }
+      - { name: "libicu-devel", version: "67.1-7.el8" }
+      - { name: "bison", version: "3.0.4-10.el8" }
+      - { name: "flex", version: "2.6.1-9.el8" }
+      - { name: "perl", version: "5.26.3-422.el8" }
+      - { name: "readline-devel", version: "7.0-10.el8" }
+      - { name: "openssl-devel", version: "1.1.1k-14.el8" }
+      - { name: "libxml2-devel", version: "2.9.7-9.el8" }
+      - { name: "libxslt-devel", version: "1.1.32-6.el8" }
+      - { name: "krb5-devel", version: "1.18.2-14.el8" }
+      - { name: "pam-devel", version: "1.3.1-18.el8" }
+      - { name: "python3-devel", version: "3.6.8-37.el8" }
+      - { name: "tcl-devel", version: "8.6.8-2.el8" }
+      - { name: "llvm", version: "9.0.1-2.el8" }
+      - { name: "clang", version: "9.0.1-2.el8" }
+      - { name: "systemd-devel", version: "239-78.el8" }
+
+# Check installed dependencies
+- name: Check installed PostgreSQL dependencies
+  ansible.builtin.shell: "rpm -q {{ item.name }}"
+  loop: "{{ postgres_dependencies }}"
+  register: dependency_check_results
+  changed_when: false
+  failed_when: false
+
+# Log dependency check results
+- name: Log PostgreSQL dependency check results
+  ansible.builtin.blockinfile:
+    path: /home/ansible/ansible-postgres-upgrade/roles/logs/precheck.log
+    block: |
+      ========== Dependency Check Results ==========
+      {% for item in dependency_check_results.results | sort(attribute='stdout') %}
+      {{ item.item.name }}: {{ 'Installed' if 'is not installed' not in item.stdout else 'Not Installed' }}
+      {% endfor %}
+
+      {% for item in dependency_check_results.results | sort(attribute='stdout') %}
+      {% if 'is not installed' in item.stdout %}
+      Missing Dependency: {{ item.item.name }} is required for upgrade to PostgreSQL 13.9. Required Version: {{ item.item.version }}
+      {% endif %}
+      {% endfor %}
+      ==============================================
+    marker: ""
+  delegate_to: localhost
+
+# Fail if critical dependencies are missing
+- name: Fail if critical PostgreSQL dependencies are missing
+  ansible.builtin.fail:
+    msg: "Some PostgreSQL dependencies are missing. Check precheck logs for details."
+  when: "'is not installed' in dependency_check_results.results | map(attribute='stdout') | join(' ')"
+  ignore_errors: true
+
