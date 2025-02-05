@@ -4,89 +4,171 @@ This Ansible role automates the process of upgrading PostgreSQL from an older ve
 Directory Structure
 ansible-postgres-upgrade/
 .
-├── {
+
 ├── inventory
+
 │   ├── group_vars
+
 │   │   └── all.yml
+
 │   ├── hosts
+
 │   └── host_vars
+
 │       └── specific_host.yml
+
 ├── playbooks
+
 │   ├── postchecks_main.yml
+
 │   ├── prechecks_main.yml
+
 │   └── upgrade_main.yml
+
 ├── ReadMe.md
+
 ├── reports
+
 │   ├── precheck_report.md
+
 │   ├── upgrade_summary.md
+
 │   └── validation_report.md
+
 └── roles
+
     ├── defaults
+    
     │   └── main.yml
+    
     ├── handlers
+    
     │   └── main.yml
+    
     ├── logs
+    
     │   ├── postcheck.log
+    
     │   ├── precheck.log
+    
     │   ├── upgrade_13.log
+    
     │   ├── upgrade13.log
+    
     │   └── upgrade.log
+    
     ├── postchecks
+    
     │   ├── tasks
+    
     │   │   ├── benchmark_performance.yml
+    
     │   │   ├── cleanup_old_data.yml
+    
     │   │   ├── generate_upgrade_report.yml
+    
     │   │   ├── post_upgrade_tasks.yml
+    
     │   │   ├── reinstall_extensions.yml
+    
     │   │   ├── restore_config_files.yml
+    
     │   │   ├── run_sanity_checks.yml
+    
     │   │   ├── start_new_postgres.yml
+    
     │   │   ├── test_application_connectivity.yml
+    
     │   │   └── vacuum_reindex.yml
+    
     │   └── templates
+    
     │       └── validation_report.md.j2
+    
     ├── prechecks
+    
     │   ├── tasks
+    
     │   │   ├── backup_config_files.yml
+    
     │   │   ├── backup_database.yml
+    
     │   │   ├── check_disk_space.yml
+    
     │   │   ├── check_orphaned_objects.yml
+    
     │   │   ├── main.yml
+    
     │   │   ├── record_extensions.yml
+    
     │   │   └── validate_system.yml
+    
     │   └── templates
+    
     │       └── prechecks_report.md.j2
+    
     ├── tasks
+    
     ├── upgrade
+    
     │   ├── tasks
+    
     │   │   ├── backup_database.yml
+    
     │   │   ├── backup_database.yml_new_with_error_handling
+    
     │   │   ├── backup_extensions.yml
+    
     │   │   ├── benchmark_performance.yml
+    
     │   │   ├── disable_wal_archiving.yml
+    
     │   │   ├── download_postgres.yml
+    
     │   │   ├── download_postgres.yml_old1
+    
     │   │   ├── dry_run_upgrade.yml
+    
     │   │   ├── dry_run_upgrade.yml_ols
+    
     │   │   ├── init_new_postgres.yml
+    
     │   │   ├── install_missing_dependency.yml
+    
     │   │   ├── main.yml
+    
     │   │   ├── perform_upgrade.yml
+    
     │   │   ├── perform_upgrade.yml_old_working
+    
     │   │   ├── restore_config_files.yml
+    
     │   │   ├── send_notification.yml
+    
     │   │   ├── session_monitoring.yml
+    
     │   │   ├── start_newversion.yml
+    
     │   │   ├── stop_connections.yml
+    
     │   │   ├── stop_old_postgres.yml
+    
     │   │   ├── validate_upgrade.yml
+    
     │   │   ├── verify_versions.yml
+    
     │   │   └── verify_versions.yml_old
+    
     │   └── templates
+    
     │       └── postgresql.conf.j2
+    
     └── vars
+    
         ├── main.yml
+        
         ├── postgres_versions.yml
+        
         └── postgres_versions.yml_old
 
 PRE-REQUISITES
